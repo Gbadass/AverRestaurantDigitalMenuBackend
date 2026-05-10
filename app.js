@@ -19,17 +19,18 @@ const app = express();
 // Security headers
 app.use(helmet());
 
-// CORS — only allow known origins
+// CORS — strip trailing slashes so env var formatting doesn't matter
 const allowedOrigins = (process.env.CORS_ORIGIN || "")
   .split(",")
-  .map((o) => o.trim())
+  .map((o) => o.trim().replace(/\/+$/, ""))
   .filter(Boolean);
 
 app.use(cors({
   origin: (origin, cb) => {
-    // allow requests with no origin (mobile apps, curl, Render health checks)
+    // allow requests with no origin (curl, mobile apps, Render health checks)
     if (!origin) return cb(null, true);
-    if (allowedOrigins.includes(origin)) return cb(null, true);
+    const clean = origin.replace(/\/+$/, "");
+    if (!allowedOrigins.length || allowedOrigins.includes(clean)) return cb(null, true);
     cb(new Error(`CORS: origin ${origin} not allowed`));
   },
   credentials: true,
