@@ -1,8 +1,14 @@
 import Table from "../models/tables.js";
 import Scan from "../models/scan.js";
+import MenuMeta from "../models/MenuMeta.js";
 import { toTableDto } from "../utils/tableDto.js";
 
-const MENU_URL = process.env.PUBLIC_MENU_URL || "https://averrestuarant.com";
+const FALLBACK_URL = process.env.PUBLIC_MENU_URL || "https://averrestaurant.com";
+
+async function getMenuUrl() {
+  const meta = await MenuMeta.findOne().lean();
+  return (meta?.menuUrl?.trim()) || FALLBACK_URL;
+}
 
 export const getTables = async (req, res, next) => {
   try {
@@ -13,10 +19,9 @@ export const getTables = async (req, res, next) => {
     if (active === "false") filter.isActive = false;
 
     const tables = await Table.find(filter).sort({ tableNumber: 1 }).lean();
-
-    // return a stable contract for frontend
+    const menuUrl = await getMenuUrl();
     res.json({
-      tables: tables.map((t) => toTableDto(t, MENU_URL)),
+      tables: tables.map((t) => toTableDto(t, menuUrl)),
     });
   } catch (e) {
     next(e);
@@ -27,8 +32,8 @@ export const getTableById = async (req, res, next) => {
   try {
     const table = await Table.findById(req.params.id).lean();
     if (!table) return res.status(404).json({ message: "Table not found" });
-
-    res.json({ table: toTableDto(table, MENU_URL) });
+    const menuUrl = await getMenuUrl();
+    res.json({ table: toTableDto(table, menuUrl) });
   } catch (e) {
     next(e);
   }
@@ -54,7 +59,8 @@ export const createTable = async (req, res, next) => {
       isActive,
     });
 
-    res.status(201).json({ table: toTableDto(table.toObject(), MENU_URL) });
+    const menuUrl = await getMenuUrl();
+    res.status(201).json({ table: toTableDto(table.toObject(), menuUrl) });
   } catch (e) {
     next(e);
   }
@@ -90,7 +96,8 @@ export const updateTable = async (req, res, next) => {
 
     await table.save();
 
-    res.json({ table: toTableDto(table.toObject(), MENU_URL) });
+    const menuUrl = await getMenuUrl();
+    res.json({ table: toTableDto(table.toObject(), menuUrl) });
   } catch (e) {
     next(e);
   }
@@ -109,7 +116,10 @@ export const deleteTable = async (req, res, next) => {
 // ✅ OPTIONAL: admin stats endpoint (so frontend can show scans per table)
 export const getTablesWithStats = async (req, res, next) => {
   try {
-    const tables = await Table.find({}).sort({ tableNumber: 1 }).lean();
+    const [tables, menuUrl] = await Promise.all([
+      Table.find({}).sort({ tableNumber: 1 }).lean(),
+      getMenuUrl(),
+    ]);
 
     const stats = await Scan.aggregate([
       {
@@ -125,7 +135,7 @@ export const getTablesWithStats = async (req, res, next) => {
     const statsMap = new Map(stats.map((s) => [String(s._id), s]));
 
     const result = tables.map((t) => {
-      const dto = toTableDto(t, MENU_URL);
+      const dto = toTableDto(t, menuUrl);
       const s = statsMap.get(dto.id);
 
       return {

@@ -5,6 +5,7 @@ const MenuMetaSchema = new mongoose.Schema(
     restaurantName: { type: String, default: "Aver Restaurant" },
     sectionName: { type: String, default: "Rooftop Bar" },
     location: { type: String, default: "" },
+    menuUrl: { type: String, default: "" },
     currencySymbol: { type: String, default: "$" },
     lastUpdated: { type: Date, default: Date.now }
   },
