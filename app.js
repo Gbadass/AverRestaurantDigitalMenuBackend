@@ -11,6 +11,7 @@ import metaRoutes from "./routes/meta.js";
 import scansRoutes from "./routes/scan.js";
 import tablesRoutes from "./routes/tables.js";
 import adminRoutes from "./routes/admin.js";
+import requestsRoutes from "./routes/requests.js";
 
 dotenv.config();
 
@@ -67,6 +68,7 @@ app.use("/api/meta", metaRoutes);
 app.use("/api/scans", scansRoutes);
 app.use("/api/tables", tablesRoutes);
 app.use("/api/admin", loginLimit, adminRoutes);
+app.use("/api/requests", requestsRoutes);
 
 app.use((req, res) => res.status(404).json({ message: "Route not found" }));
 

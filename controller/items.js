@@ -1,6 +1,11 @@
 import MenuItem from "../models/MenuItem.js";
 import Category from "../models/Category.js";
+import MenuMeta from "../models/MenuMeta.js";
 import { slugify } from "../utils/slugify.js";
+
+function bumpLastUpdated() {
+  MenuMeta.findOneAndUpdate({}, { lastUpdated: new Date() }, { upsert: true }).catch(() => {});
+}
 
 const ALLOWED_TAGS = ["signature", "new", "spicy", "vegan", "popular", "seasonal",
   "protein", "chicken", "beef", "fish", "swallow", "main", "peppered",
@@ -56,9 +61,17 @@ export async function getItem(req, res) {
   res.json({ item });
 }
 
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+function safeTime(val) {
+  if (!val) return "";
+  const s = String(val).trim();
+  return TIME_RE.test(s) ? s : "";
+}
+
 export async function createItem(req, res) {
   const body = req.body ?? {};
-  const { name, slug, price, categorySlug, description, imageUrl, tags, areas, isActive, sortOrder } = body;
+  const { name, slug, price, categorySlug, description, imageUrl, tags, areas, isActive, sortOrder, featured, availableFrom, availableTo } = body;
 
   if (!name || typeof name !== "string" || name.trim().length < 1)
     return res.status(400).json({ message: "name is required" });
@@ -92,8 +105,12 @@ export async function createItem(req, res) {
     areas: safeAreas,
     isActive: isActive !== false,
     sortOrder: Number(sortOrder) || 0,
+    featured: featured === true || featured === "true",
+    availableFrom: safeTime(availableFrom),
+    availableTo: safeTime(availableTo),
   });
 
+  bumpLastUpdated();
   res.status(201).json({ item });
 }
 
@@ -110,6 +127,10 @@ export async function updateItem(req, res) {
   if (body.imageUrl !== undefined) updates.imageUrl = String(body.imageUrl).trim().slice(0, 500);
   if (body.sortOrder !== undefined) updates.sortOrder = Number(body.sortOrder) || 0;
   if (body.isActive !== undefined) updates.isActive = Boolean(body.isActive);
+  if (body.soldOut !== undefined) updates.soldOut = Boolean(body.soldOut);
+  if (body.featured !== undefined) updates.featured = body.featured === true || body.featured === "true";
+  if (body.availableFrom !== undefined) updates.availableFrom = safeTime(body.availableFrom);
+  if (body.availableTo !== undefined) updates.availableTo = safeTime(body.availableTo);
   if (body.tags !== undefined) updates.tags = Array.isArray(body.tags) ? body.tags.filter((t) => ALLOWED_TAGS.includes(String(t))) : [];
   if (body.areas !== undefined) updates.areas = Array.isArray(body.areas) ? body.areas.filter((a) => ALLOWED_AREAS.includes(String(a))) : [];
 
@@ -126,6 +147,7 @@ export async function updateItem(req, res) {
   const item = await MenuItem.findOneAndUpdate({ slug }, updates, { new: true }).lean();
   if (!item) return res.status(404).json({ message: "Item not found" });
 
+  bumpLastUpdated();
   res.json({ item });
 }
 
@@ -134,5 +156,6 @@ export async function deleteItem(req, res) {
   if (!slug) return res.status(400).json({ message: "Invalid slug" });
   const item = await MenuItem.findOneAndDelete({ slug });
   if (!item) return res.status(404).json({ message: "Item not found" });
+  bumpLastUpdated();
   res.json({ ok: true });
 }

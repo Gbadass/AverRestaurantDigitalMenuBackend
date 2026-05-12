@@ -2,6 +2,13 @@ import Category from "../models/Category.js";
 import MenuItem from "../models/MenuItem.js";
 import { slugify } from "../utils/slugify.js";
 
+const ALLOWED_FLOORS = ["ground", "vip", "rooftop"];
+
+function safeFloors(val) {
+  if (!Array.isArray(val)) return [];
+  return val.filter((f) => ALLOWED_FLOORS.includes(String(f)));
+}
+
 export async function getCategories(req, res) {
   const categories = await Category.find().sort({ order: 1, createdAt: 1 }).lean();
   res.json({ categories });
@@ -14,20 +21,22 @@ export async function getCategory(req, res) {
 }
 
 export async function createCategory(req, res) {
-  const { name, slug, icon = "", order = 0 } = req.body ?? {};
+  const { name, slug, icon = "", order = 0, floors } = req.body ?? {};
   if (!name) return res.status(400).json({ message: "name is required" });
 
   const finalSlug = slugify(slug || name);
   const exists = await Category.findOne({ slug: finalSlug });
   if (exists) return res.status(409).json({ message: "Category slug already exists" });
 
-  const category = await Category.create({ name, slug: finalSlug, icon, order });
+  const category = await Category.create({ name, slug: finalSlug, icon, order, floors: safeFloors(floors) });
   res.status(201).json({ category });
 }
 
 export async function updateCategory(req, res) {
   const updates = req.body ?? {};
   if (updates.slug) updates.slug = slugify(updates.slug);
+
+  if (updates.floors !== undefined) updates.floors = safeFloors(updates.floors);
 
   const current = await Category.findOne({ slug: req.params.slug });
   if (!current) return res.status(404).json({ message: "Category not found" });
